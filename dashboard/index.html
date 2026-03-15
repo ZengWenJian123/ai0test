@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GMI ELN 实验数据可视化看板</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <style>
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "PingFang SC", "Microsoft YaHei", sans-serif;
+        background: #f5f7fb;
+        color: #1f2a44;
+      }
+      header {
+        padding: 20px 24px;
+        background: #0f4c81;
+        color: #fff;
+      }
+      h1 {
+        margin: 0;
+        font-size: 22px;
+      }
+      .subtitle {
+        margin-top: 6px;
+        opacity: 0.9;
+      }
+      .grid {
+        padding: 16px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+        gap: 16px;
+      }
+      .card {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 6px 18px rgba(31, 42, 68, 0.08);
+        padding: 12px;
+      }
+      .title {
+        margin: 8px 10px;
+        font-size: 15px;
+        font-weight: 700;
+      }
+      .chart {
+        width: 100%;
+        height: 320px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>GMI 非晶材料 ELN：实验数据可视化分析</h1>
+      <div class="subtitle">覆盖熔炼、拉丝、退火与检测四阶段关键指标</div>
+    </header>
+
+    <section class="grid">
+      <div class="card">
+        <div class="title">1. 工艺参数时序趋势</div>
+        <div id="trend" class="chart"></div>
+      </div>
+      <div class="card">
+        <div class="title">2. 批次 GMI 指标对比</div>
+        <div id="bar" class="chart"></div>
+      </div>
+      <div class="card">
+        <div class="title">3. 退火温度 vs GMI 相关性</div>
+        <div id="scatter" class="chart"></div>
+      </div>
+      <div class="card">
+        <div class="title">4. GMI 质量控制图（X-bar）</div>
+        <div id="control" class="chart"></div>
+      </div>
+    </section>
+
+    <script>
+      const data = [
+        { batch: "B240301", melt: 1268, draw: 22.5, anneal: 378, gmi: 7.4 },
+        { batch: "B240302", melt: 1272, draw: 23.1, anneal: 381, gmi: 7.9 },
+        { batch: "B240303", melt: 1260, draw: 21.8, anneal: 374, gmi: 6.8 },
+        { batch: "B240304", melt: 1278, draw: 23.4, anneal: 385, gmi: 8.2 },
+        { batch: "B240305", melt: 1265, draw: 22.2, anneal: 377, gmi: 7.2 },
+        { batch: "B240306", melt: 1281, draw: 23.8, anneal: 387, gmi: 8.5 },
+        { batch: "B240307", melt: 1258, draw: 21.5, anneal: 372, gmi: 6.5 },
+        { batch: "B240308", melt: 1275, draw: 23.0, anneal: 383, gmi: 8.0 },
+        { batch: "B240309", melt: 1263, draw: 22.0, anneal: 376, gmi: 7.1 },
+        { batch: "B240310", melt: 1283, draw: 24.0, anneal: 389, gmi: 8.7 },
+      ];
+
+      const batches = data.map((d) => d.batch);
+      const gmi = data.map((d) => d.gmi);
+      const mean = gmi.reduce((a, b) => a + b, 0) / gmi.length;
+      const std = Math.sqrt(
+        gmi.reduce((acc, x) => acc + (x - mean) ** 2, 0) / gmi.length
+      );
+      const ucl = mean + 3 * std;
+      const lcl = mean - 3 * std;
+
+      const trend = echarts.init(document.getElementById("trend"));
+      trend.setOption({
+        tooltip: { trigger: "axis" },
+        legend: { top: 4 },
+        xAxis: { type: "category", data: batches },
+        yAxis: [
+          { type: "value", name: "温度(℃)" },
+          { type: "value", name: "速度(m/s)", min: 20, max: 25 },
+        ],
+        series: [
+          { name: "熔炼温度", type: "line", data: data.map((d) => d.melt), smooth: true },
+          { name: "退火温度", type: "line", data: data.map((d) => d.anneal), smooth: true },
+          { name: "拉丝速度", type: "line", yAxisIndex: 1, data: data.map((d) => d.draw), smooth: true },
+        ],
+      });
+
+      const bar = echarts.init(document.getElementById("bar"));
+      bar.setOption({
+        tooltip: { trigger: "axis" },
+        xAxis: { type: "category", data: batches },
+        yAxis: { type: "value", name: "GMI(%)" },
+        series: [
+          {
+            name: "GMI",
+            type: "bar",
+            data: gmi,
+            itemStyle: {
+              color: (p) => (p.value >= mean ? "#2f8f46" : "#d08f00"),
+            },
+          },
+        ],
+      });
+
+      const scatter = echarts.init(document.getElementById("scatter"));
+      scatter.setOption({
+        tooltip: { trigger: "item" },
+        xAxis: { type: "value", name: "退火温度(℃)" },
+        yAxis: { type: "value", name: "GMI(%)" },
+        series: [
+          {
+            type: "scatter",
+            symbolSize: 12,
+            data: data.map((d) => [d.anneal, d.gmi, d.batch]),
+            label: {
+              show: true,
+              formatter: (p) => p.data[2],
+              position: "top",
+              fontSize: 10,
+            },
+          },
+        ],
+      });
+
+      const control = echarts.init(document.getElementById("control"));
+      control.setOption({
+        tooltip: { trigger: "axis" },
+        legend: { top: 4 },
+        xAxis: { type: "category", data: batches },
+        yAxis: { type: "value", name: "GMI(%)" },
+        series: [
+          { name: "样本值", type: "line", data: gmi },
+          { name: "均值", type: "line", data: batches.map(() => mean), lineStyle: { type: "dashed" } },
+          { name: "UCL", type: "line", data: batches.map(() => ucl), lineStyle: { type: "dotted" } },
+          { name: "LCL", type: "line", data: batches.map(() => lcl), lineStyle: { type: "dotted" } },
+        ],
+      });
+
+      window.addEventListener("resize", () => {
+        trend.resize();
+        bar.resize();
+        scatter.resize();
+        control.resize();
+      });
+    </script>
+  </body>
+</html>
