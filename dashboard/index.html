@@ -25,15 +25,9 @@
         background: var(--primary);
         color: #fff;
       }
-      h1 {
-        margin: 0;
-        font-size: 22px;
-      }
-      .subtitle {
-        margin-top: 6px;
-        opacity: 0.9;
-      }
-      .toolbar {
+      h1 { margin: 0; font-size: 22px; }
+      .subtitle { margin-top: 6px; opacity: 0.9; }
+      .toolbar, .panel {
         margin: 16px;
         padding: 12px;
         border-radius: 12px;
@@ -42,27 +36,29 @@
         display: flex;
         flex-wrap: wrap;
         gap: 12px;
-        align-items: center;
+        align-items: end;
       }
-      .toolbar label {
-        font-size: 13px;
-        color: #42526b;
+      .panel-title {
+        width: 100%;
+        margin: 0;
+        font-size: 15px;
       }
-      .toolbar input,
-      .toolbar select,
-      .toolbar button {
+      label { font-size: 13px; color: #42526b; display: flex; flex-direction: column; gap: 6px; }
+      input, select, button {
         border: 1px solid #d4d9e2;
         border-radius: 8px;
         padding: 6px 10px;
         font-size: 13px;
         background: #fff;
       }
-      .toolbar button {
+      button {
         background: var(--primary);
         color: #fff;
         border: none;
         cursor: pointer;
       }
+      button.secondary { background: #60708a; }
+      .status { margin-left: auto; font-size: 12px; color: #60708a; }
       .metrics {
         margin: 0 16px;
         display: grid;
@@ -75,15 +71,8 @@
         padding: 12px;
         box-shadow: 0 6px 18px rgba(31, 42, 68, 0.08);
       }
-      .metric-label {
-        color: #60708a;
-        font-size: 12px;
-      }
-      .metric-value {
-        margin-top: 4px;
-        font-size: 24px;
-        font-weight: 700;
-      }
+      .metric-label { color: #60708a; font-size: 12px; }
+      .metric-value { margin-top: 4px; font-size: 24px; font-weight: 700; }
       .grid {
         padding: 16px;
         display: grid;
@@ -96,30 +85,44 @@
         box-shadow: 0 6px 18px rgba(31, 42, 68, 0.08);
         padding: 12px;
       }
-      .title {
-        margin: 8px 10px;
-        font-size: 15px;
-        font-weight: 700;
-      }
-      .chart {
-        width: 100%;
-        height: 320px;
-      }
-      .status {
-        margin-left: auto;
-        font-size: 12px;
-        color: #60708a;
-      }
+      .title { margin: 8px 10px; font-size: 15px; font-weight: 700; }
+      .chart { width: 100%; height: 320px; }
     </style>
   </head>
   <body>
     <header>
       <h1>GMI 非晶材料 ELN：实验数据可视化分析</h1>
-      <div class="subtitle">支持 CSV 自动加载 + 批次筛选 + 趋势/SPC/相关性分析</div>
+      <div class="subtitle">支持 CSV 导入、手工录入、表头自动识别，并按实验编号分类保存</div>
     </header>
 
+    <section class="panel">
+      <h3 class="panel-title">实验数据管理（导入 / 手工录入）</h3>
+      <label>当前实验编号
+        <select id="experimentSelect"></select>
+      </label>
+      <label>新实验编号
+        <input id="newExperimentId" placeholder="例如 EXP-20260315-A" />
+      </label>
+      <button id="createExperiment">创建并切换</button>
+      <button id="deleteExperiment" class="secondary">删除当前实验</button>
+
+      <label>上传 CSV 文件
+        <input id="csvFile" type="file" accept=".csv,text/csv" />
+      </label>
+      <button id="importCsv">导入到当前实验</button>
+
+      <span class="status" id="status">初始化中...</span>
+
+      <label>批次编号<input id="fBatch" placeholder="B240311" /></label>
+      <label>熔炼温度(℃)<input id="fMelt" type="number" step="0.1" /></label>
+      <label>拉丝速度(m/s)<input id="fDraw" type="number" step="0.1" /></label>
+      <label>退火温度(℃)<input id="fAnneal" type="number" step="0.1" /></label>
+      <label>GMI(%)<input id="fGmi" type="number" step="0.1" /></label>
+      <label>缺陷率(%)<input id="fDefect" type="number" step="0.1" /></label>
+      <button id="addManual">添加手工记录</button>
+    </section>
+
     <section class="toolbar">
-      <label>数据源：<code>../data/sample_experiment_data.csv</code></label>
       <label>起始批次
         <select id="startBatch"></select>
       </label>
@@ -127,38 +130,26 @@
         <select id="endBatch"></select>
       </label>
       <button id="apply">应用筛选</button>
-      <button id="reset">重置</button>
-      <span class="status" id="status">数据加载中...</span>
+      <button id="reset" class="secondary">重置筛选</button>
     </section>
 
     <section class="metrics">
-      <div class="metric-card">
-        <div class="metric-label">批次数量</div>
-        <div class="metric-value" id="mBatches">-</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">平均 GMI (%)</div>
-        <div class="metric-value" id="mGmi">-</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">平均缺陷率 (%)</div>
-        <div class="metric-value" id="mDefect">-</div>
-      </div>
-      <div class="metric-card">
-        <div class="metric-label">最高 GMI 批次</div>
-        <div class="metric-value" id="mBest">-</div>
-      </div>
+      <div class="metric-card"><div class="metric-label">批次数量</div><div class="metric-value" id="mBatches">-</div></div>
+      <div class="metric-card"><div class="metric-label">平均 GMI (%)</div><div class="metric-value" id="mGmi">-</div></div>
+      <div class="metric-card"><div class="metric-label">平均缺陷率 (%)</div><div class="metric-value" id="mDefect">-</div></div>
+      <div class="metric-card"><div class="metric-label">最高 GMI 批次</div><div class="metric-value" id="mBest">-</div></div>
     </section>
 
     <section class="grid">
       <div class="card"><div class="title">1. 工艺参数时序趋势</div><div id="trend" class="chart"></div></div>
-      <div class="card"><div class="title">2. 批次 GMI 指标对比（超均值高亮）</div><div id="bar" class="chart"></div></div>
+      <div class="card"><div class="title">2. 批次 GMI 指标对比</div><div id="bar" class="chart"></div></div>
       <div class="card"><div class="title">3. 退火温度 vs GMI 相关性</div><div id="scatter" class="chart"></div></div>
       <div class="card"><div class="title">4. GMI 质量控制图（X-bar）</div><div id="control" class="chart"></div></div>
       <div class="card"><div class="title">5. 缺陷率趋势与阈值（2.8%）</div><div id="defect" class="chart"></div></div>
     </section>
 
     <script>
+      const STORAGE_KEY = "ELN_EXPERIMENT_GROUPS";
       const SAMPLE_FALLBACK = [
         { batch_id: "B240301", melt_temp_c: 1268, draw_speed_mps: 22.5, anneal_temp_c: 378, gmi_ratio_pct: 7.4, defect_rate_pct: 2.8 },
         { batch_id: "B240302", melt_temp_c: 1272, draw_speed_mps: 23.1, anneal_temp_c: 381, gmi_ratio_pct: 7.9, defect_rate_pct: 2.3 },
@@ -173,9 +164,11 @@
       ];
 
       const statusEl = document.getElementById("status");
+      const experimentSelectEl = document.getElementById("experimentSelect");
       const startEl = document.getElementById("startBatch");
       const endEl = document.getElementById("endBatch");
-      let fullData = [];
+      let groupedData = {};
+      let currentExperimentId = "";
 
       const charts = {
         trend: echarts.init(document.getElementById("trend")),
@@ -190,88 +183,157 @@
         return Number.isFinite(n) ? n : null;
       }
 
-      function parseCSV(text) {
-        const [headerLine, ...lines] = text.trim().split(/\r?\n/);
-        const headers = headerLine.split(",").map((x) => x.trim());
-        return lines.map((line) => {
-          const cols = line.split(",");
-          const obj = {};
-          headers.forEach((h, i) => (obj[h] = cols[i]?.trim()));
-          return {
-            batch_id: obj.batch_id,
-            melt_temp_c: toNum(obj.melt_temp_c),
-            draw_speed_mps: toNum(obj.draw_speed_mps),
-            anneal_temp_c: toNum(obj.anneal_temp_c),
-            gmi_ratio_pct: toNum(obj.gmi_ratio_pct),
-            defect_rate_pct: toNum(obj.defect_rate_pct),
-          };
-        }).filter((d) => d.batch_id);
+      function normalizeRow(row) {
+        if (!row.batch_id) return null;
+        return {
+          batch_id: String(row.batch_id),
+          melt_temp_c: toNum(row.melt_temp_c),
+          draw_speed_mps: toNum(row.draw_speed_mps),
+          anneal_temp_c: toNum(row.anneal_temp_c),
+          gmi_ratio_pct: toNum(row.gmi_ratio_pct),
+          defect_rate_pct: toNum(row.defect_rate_pct),
+        };
+      }
+
+      function headerKey(raw) {
+        return String(raw || "").trim().toLowerCase().replace(/[%()\s_-]/g, "");
+      }
+
+      function detectHeaderMap(headers) {
+        const h = headers.map((x) => ({ raw: x, key: headerKey(x) }));
+        const pick = (candidates) => h.find((x) => candidates.some((c) => x.key.includes(c)))?.raw;
+
+        return {
+          batch_id: pick(["batchid", "batch", "批次"]),
+          melt_temp_c: pick(["melttempc", "melt", "熔炼温度", "熔炼"]),
+          draw_speed_mps: pick(["drawspeedmps", "drawspeed", "draw", "拉丝速度", "拉丝"]),
+          anneal_temp_c: pick(["annealtempc", "anneal", "退火温度", "退火"]),
+          gmi_ratio_pct: pick(["gmiratiopct", "gmi", "gmi指标"]),
+          defect_rate_pct: pick(["defectratepct", "defect", "缺陷率"]),
+        };
+      }
+
+      function parseCSVWithAutoHeader(text) {
+        const lines = text.trim().split(/\r?\n/).filter(Boolean);
+        if (lines.length < 2) return [];
+
+        const headers = lines[0].split(",").map((x) => x.trim());
+        const map = detectHeaderMap(headers);
+        if (!map.batch_id) {
+          throw new Error("无法识别批次列，请在 CSV 表头包含 batch_id / batch / 批次");
+        }
+
+        const rows = [];
+        for (const line of lines.slice(1)) {
+          const cols = line.split(",").map((x) => x.trim());
+          const record = {};
+          for (const [target, source] of Object.entries(map)) {
+            if (!source) continue;
+            const idx = headers.indexOf(source);
+            record[target] = idx >= 0 ? cols[idx] : null;
+          }
+          const normalized = normalizeRow(record);
+          if (normalized) rows.push(normalized);
+        }
+        return rows;
+      }
+
+      function loadStorage() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            groupedData = JSON.parse(raw);
+            return;
+          }
+        } catch (e) {}
+        groupedData = {};
+      }
+
+      function saveStorage() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(groupedData));
+      }
+
+      function currentData() {
+        return groupedData[currentExperimentId] || [];
+      }
+
+      function refreshExperimentSelect() {
+        const ids = Object.keys(groupedData);
+        experimentSelectEl.innerHTML = ids.map((id) => `<option value="${id}">${id}</option>`).join("");
+        if (!ids.length) {
+          const defaultId = "EXP-DEMO";
+          groupedData[defaultId] = [...SAMPLE_FALLBACK];
+          currentExperimentId = defaultId;
+          saveStorage();
+          refreshExperimentSelect();
+          return;
+        }
+        if (!groupedData[currentExperimentId]) currentExperimentId = ids[0];
+        experimentSelectEl.value = currentExperimentId;
       }
 
       function calcStats(arr) {
         const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
         const std = Math.sqrt(arr.reduce((acc, x) => acc + (x - mean) ** 2, 0) / arr.length);
-        return { mean, std, ucl: mean + 3 * std, lcl: mean - 3 * std };
+        return { mean, ucl: mean + 3 * std, lcl: mean - 3 * std };
       }
 
       function setMetrics(dataset) {
-        const gmis = dataset.map((d) => d.gmi_ratio_pct);
-        const defects = dataset.map((d) => d.defect_rate_pct);
+        if (!dataset.length) {
+          document.getElementById("mBatches").textContent = "0";
+          document.getElementById("mGmi").textContent = "-";
+          document.getElementById("mDefect").textContent = "-";
+          document.getElementById("mBest").textContent = "-";
+          return;
+        }
+        const gmis = dataset.map((d) => d.gmi_ratio_pct || 0);
+        const defects = dataset.map((d) => d.defect_rate_pct || 0);
         const avgGmi = gmis.reduce((a, b) => a + b, 0) / gmis.length;
         const avgDefect = defects.reduce((a, b) => a + b, 0) / defects.length;
-        const best = dataset.reduce((p, c) => (c.gmi_ratio_pct > p.gmi_ratio_pct ? c : p), dataset[0]);
+        const best = dataset.reduce((p, c) => ((c.gmi_ratio_pct || -Infinity) > (p.gmi_ratio_pct || -Infinity) ? c : p), dataset[0]);
 
         document.getElementById("mBatches").textContent = String(dataset.length);
         document.getElementById("mGmi").textContent = avgGmi.toFixed(2);
         document.getElementById("mDefect").textContent = avgDefect.toFixed(2);
-        document.getElementById("mBest").textContent = `${best.batch_id} (${best.gmi_ratio_pct.toFixed(1)})`;
+        document.getElementById("mBest").textContent = `${best.batch_id} (${(best.gmi_ratio_pct || 0).toFixed(1)})`;
       }
 
       function updateCharts(dataset) {
-        if (!dataset.length) return;
+        if (!dataset.length) {
+          Object.values(charts).forEach((c) => c.clear());
+          setMetrics([]);
+          return;
+        }
 
         const batches = dataset.map((d) => d.batch_id);
-        const gmi = dataset.map((d) => d.gmi_ratio_pct);
-        const defects = dataset.map((d) => d.defect_rate_pct);
+        const gmi = dataset.map((d) => d.gmi_ratio_pct || 0);
+        const defects = dataset.map((d) => d.defect_rate_pct || 0);
         const { mean, ucl, lcl } = calcStats(gmi);
 
         charts.trend.setOption({
-          tooltip: { trigger: "axis" },
-          legend: { top: 4 },
+          tooltip: { trigger: "axis" }, legend: { top: 4 },
           xAxis: { type: "category", data: batches },
           yAxis: [{ type: "value", name: "温度(℃)" }, { type: "value", name: "速度(m/s)", min: 20, max: 25 }],
           series: [
-            { name: "熔炼温度", type: "line", smooth: true, data: dataset.map((d) => d.melt_temp_c) },
-            { name: "退火温度", type: "line", smooth: true, data: dataset.map((d) => d.anneal_temp_c) },
-            { name: "拉丝速度", type: "line", smooth: true, yAxisIndex: 1, data: dataset.map((d) => d.draw_speed_mps) },
+            { name: "熔炼温度", type: "line", smooth: true, data: dataset.map((d) => d.melt_temp_c || 0) },
+            { name: "退火温度", type: "line", smooth: true, data: dataset.map((d) => d.anneal_temp_c || 0) },
+            { name: "拉丝速度", type: "line", smooth: true, yAxisIndex: 1, data: dataset.map((d) => d.draw_speed_mps || 0) },
           ],
         });
 
         charts.bar.setOption({
-          tooltip: { trigger: "axis" },
-          xAxis: { type: "category", data: batches },
-          yAxis: { type: "value", name: "GMI(%)" },
-          series: [{
-            name: "GMI",
-            type: "bar",
-            data: gmi,
-            itemStyle: { color: (p) => (p.value >= mean ? "#2f8f46" : "#d08f00") },
-            markLine: { data: [{ yAxis: mean, name: "均值" }] },
-          }],
+          tooltip: { trigger: "axis" }, xAxis: { type: "category", data: batches }, yAxis: { type: "value", name: "GMI(%)" },
+          series: [{ type: "bar", data: gmi, itemStyle: { color: (p) => (p.value >= mean ? "#2f8f46" : "#d08f00") }, markLine: { data: [{ yAxis: mean, name: "均值" }] } }],
         });
 
         charts.scatter.setOption({
           tooltip: { trigger: "item", formatter: (p) => `${p.data[2]}<br/>退火: ${p.data[0]}℃<br/>GMI: ${p.data[1]}%` },
-          xAxis: { type: "value", name: "退火温度(℃)" },
-          yAxis: { type: "value", name: "GMI(%)" },
-          series: [{ type: "scatter", symbolSize: 12, data: dataset.map((d) => [d.anneal_temp_c, d.gmi_ratio_pct, d.batch_id]) }],
+          xAxis: { type: "value", name: "退火温度(℃)" }, yAxis: { type: "value", name: "GMI(%)" },
+          series: [{ type: "scatter", symbolSize: 12, data: dataset.map((d) => [d.anneal_temp_c || 0, d.gmi_ratio_pct || 0, d.batch_id]) }],
         });
 
         charts.control.setOption({
-          tooltip: { trigger: "axis" },
-          legend: { top: 4 },
-          xAxis: { type: "category", data: batches },
-          yAxis: { type: "value", name: "GMI(%)" },
+          tooltip: { trigger: "axis" }, legend: { top: 4 }, xAxis: { type: "category", data: batches }, yAxis: { type: "value", name: "GMI(%)" },
           series: [
             { name: "样本值", type: "line", data: gmi },
             { name: "均值", type: "line", data: batches.map(() => mean), lineStyle: { type: "dashed" } },
@@ -281,80 +343,130 @@
         });
 
         charts.defect.setOption({
-          tooltip: { trigger: "axis" },
-          xAxis: { type: "category", data: batches },
-          yAxis: { type: "value", name: "缺陷率(%)" },
-          series: [{
-            type: "line",
-            data: defects,
-            markLine: { data: [{ yAxis: 2.8, name: "阈值" }] },
-            lineStyle: { color: "#a83232" },
-            itemStyle: { color: "#a83232" },
-          }],
+          tooltip: { trigger: "axis" }, xAxis: { type: "category", data: batches }, yAxis: { type: "value", name: "缺陷率(%)" },
+          series: [{ type: "line", data: defects, markLine: { data: [{ yAxis: 2.8, name: "阈值" }] }, lineStyle: { color: "#a83232" }, itemStyle: { color: "#a83232" } }],
         });
 
         setMetrics(dataset);
       }
 
-      function fillSelectors(data) {
-        const options = data.map((d) => `<option value="${d.batch_id}">${d.batch_id}</option>`).join("");
+      function fillBatchSelectors(dataset) {
+        const options = dataset.map((d) => `<option value="${d.batch_id}">${d.batch_id}</option>`).join("");
         startEl.innerHTML = options;
         endEl.innerHTML = options;
-        startEl.value = data[0].batch_id;
-        endEl.value = data[data.length - 1].batch_id;
+        if (dataset.length) {
+          startEl.value = dataset[0].batch_id;
+          endEl.value = dataset[dataset.length - 1].batch_id;
+        }
+      }
+
+      function renderCurrentExperiment() {
+        const dataset = currentData();
+        fillBatchSelectors(dataset);
+        updateCharts(dataset);
+        statusEl.textContent = `当前实验 ${currentExperimentId}，记录 ${dataset.length} 条`;
+      }
+
+      function appendRowsToCurrent(rows) {
+        if (!rows.length) return;
+        groupedData[currentExperimentId] = [...currentData(), ...rows];
+        saveStorage();
+        renderCurrentExperiment();
       }
 
       function getFilteredData() {
-        const ids = fullData.map((d) => d.batch_id);
+        const dataset = currentData();
+        const ids = dataset.map((d) => d.batch_id);
         const startIndex = ids.indexOf(startEl.value);
         const endIndex = ids.indexOf(endEl.value);
-        if (startIndex < 0 || endIndex < 0) return fullData;
-        const [left, right] = startIndex <= endIndex ? [startIndex, endIndex] : [endIndex, startIndex];
-        return fullData.slice(left, right + 1);
+        if (startIndex < 0 || endIndex < 0) return dataset;
+        const [l, r] = startIndex <= endIndex ? [startIndex, endIndex] : [endIndex, startIndex];
+        return dataset.slice(l, r + 1);
       }
 
       document.getElementById("apply").addEventListener("click", () => {
         const filtered = getFilteredData();
-        statusEl.textContent = `当前展示 ${filtered.length} 个批次`;
+        statusEl.textContent = `当前实验 ${currentExperimentId}，筛选后 ${filtered.length} 条`;
         updateCharts(filtered);
       });
 
-      document.getElementById("reset").addEventListener("click", () => {
-        fillSelectors(fullData);
-        statusEl.textContent = `当前展示 ${fullData.length} 个批次`;
-        updateCharts(fullData);
+      document.getElementById("reset").addEventListener("click", () => renderCurrentExperiment());
+
+      experimentSelectEl.addEventListener("change", () => {
+        currentExperimentId = experimentSelectEl.value;
+        renderCurrentExperiment();
+      });
+
+      document.getElementById("createExperiment").addEventListener("click", () => {
+        const id = document.getElementById("newExperimentId").value.trim();
+        if (!id) return;
+        if (!groupedData[id]) groupedData[id] = [];
+        currentExperimentId = id;
+        saveStorage();
+        refreshExperimentSelect();
+        renderCurrentExperiment();
+      });
+
+      document.getElementById("deleteExperiment").addEventListener("click", () => {
+        if (!currentExperimentId) return;
+        delete groupedData[currentExperimentId];
+        saveStorage();
+        refreshExperimentSelect();
+        renderCurrentExperiment();
+      });
+
+      document.getElementById("importCsv").addEventListener("click", async () => {
+        const file = document.getElementById("csvFile").files[0];
+        if (!file) {
+          statusEl.textContent = "请先选择 CSV 文件";
+          return;
+        }
+        try {
+          const text = await file.text();
+          const rows = parseCSVWithAutoHeader(text);
+          appendRowsToCurrent(rows);
+          statusEl.textContent = `导入成功：${rows.length} 条，已保存到实验 ${currentExperimentId}`;
+        } catch (e) {
+          statusEl.textContent = `导入失败：${e.message}`;
+        }
+      });
+
+      document.getElementById("addManual").addEventListener("click", () => {
+        const row = normalizeRow({
+          batch_id: document.getElementById("fBatch").value.trim(),
+          melt_temp_c: document.getElementById("fMelt").value,
+          draw_speed_mps: document.getElementById("fDraw").value,
+          anneal_temp_c: document.getElementById("fAnneal").value,
+          gmi_ratio_pct: document.getElementById("fGmi").value,
+          defect_rate_pct: document.getElementById("fDefect").value,
+        });
+        if (!row) {
+          statusEl.textContent = "手工录入失败：批次编号不能为空";
+          return;
+        }
+        appendRowsToCurrent([row]);
+        statusEl.textContent = `手工录入成功：${row.batch_id}，已保存到实验 ${currentExperimentId}`;
       });
 
       async function init() {
+        loadStorage();
+        if (!Object.keys(groupedData).length) {
+          groupedData["EXP-DEMO"] = [...SAMPLE_FALLBACK];
+        }
+        currentExperimentId = Object.keys(groupedData)[0];
+
         try {
-          const candidates = ["../data/sample_experiment_data.csv", "./data/sample_experiment_data.csv", "sample_experiment_data.csv"];
-          let text = "";
-          let lastErr = null;
-          for (const url of candidates) {
-            try {
-              const res = await fetch(url);
-              if (!res.ok) throw new Error(`HTTP ${res.status}`);
-              text = await res.text();
-              break;
-            } catch (e) {
-              lastErr = e;
+          if (!groupedData["EXP-DEMO"]?.length) {
+            const res = await fetch("../data/sample_experiment_data.csv");
+            if (res.ok) {
+              groupedData["EXP-DEMO"] = parseCSVWithAutoHeader(await res.text());
             }
           }
-          if (!text) throw lastErr || new Error("CSV unavailable");
-          fullData = parseCSV(text);
-          statusEl.textContent = `CSV 加载成功，共 ${fullData.length} 条`;
-        } catch (error) {
-          fullData = SAMPLE_FALLBACK;
-          statusEl.textContent = `CSV 加载失败，使用内置数据（${error?.message || "未知错误"}）`;
-        }
+        } catch (e) {}
 
-        if (!fullData.length) {
-          statusEl.textContent = "没有可用数据";
-          return;
-        }
-
-        fillSelectors(fullData);
-        updateCharts(fullData);
+        saveStorage();
+        refreshExperimentSelect();
+        renderCurrentExperiment();
       }
 
       window.addEventListener("resize", () => Object.values(charts).forEach((c) => c.resize()));
