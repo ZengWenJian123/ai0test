@@ -6,16 +6,23 @@
     <title>GMI ELN 实验数据可视化看板</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
     <style>
+      :root {
+        --bg: #f5f7fb;
+        --card: #ffffff;
+        --primary: #0f4c81;
+        --text: #1f2a44;
+      }
+      * { box-sizing: border-box; }
       body {
         margin: 0;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
           "PingFang SC", "Microsoft YaHei", sans-serif;
-        background: #f5f7fb;
-        color: #1f2a44;
+        background: var(--bg);
+        color: var(--text);
       }
       header {
         padding: 20px 24px;
-        background: #0f4c81;
+        background: var(--primary);
         color: #fff;
       }
       h1 {
@@ -26,6 +33,57 @@
         margin-top: 6px;
         opacity: 0.9;
       }
+      .toolbar {
+        margin: 16px;
+        padding: 12px;
+        border-radius: 12px;
+        background: var(--card);
+        box-shadow: 0 6px 18px rgba(31, 42, 68, 0.08);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+      }
+      .toolbar label {
+        font-size: 13px;
+        color: #42526b;
+      }
+      .toolbar input,
+      .toolbar select,
+      .toolbar button {
+        border: 1px solid #d4d9e2;
+        border-radius: 8px;
+        padding: 6px 10px;
+        font-size: 13px;
+        background: #fff;
+      }
+      .toolbar button {
+        background: var(--primary);
+        color: #fff;
+        border: none;
+        cursor: pointer;
+      }
+      .metrics {
+        margin: 0 16px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+      }
+      .metric-card {
+        background: var(--card);
+        border-radius: 12px;
+        padding: 12px;
+        box-shadow: 0 6px 18px rgba(31, 42, 68, 0.08);
+      }
+      .metric-label {
+        color: #60708a;
+        font-size: 12px;
+      }
+      .metric-value {
+        margin-top: 4px;
+        font-size: 24px;
+        font-weight: 700;
+      }
       .grid {
         padding: 16px;
         display: grid;
@@ -33,7 +91,7 @@
         gap: 16px;
       }
       .card {
-        background: #fff;
+        background: var(--card);
         border-radius: 12px;
         box-shadow: 0 6px 18px rgba(31, 42, 68, 0.08);
         padding: 12px;
@@ -47,129 +105,260 @@
         width: 100%;
         height: 320px;
       }
+      .status {
+        margin-left: auto;
+        font-size: 12px;
+        color: #60708a;
+      }
     </style>
   </head>
   <body>
     <header>
       <h1>GMI 非晶材料 ELN：实验数据可视化分析</h1>
-      <div class="subtitle">覆盖熔炼、拉丝、退火与检测四阶段关键指标</div>
+      <div class="subtitle">支持 CSV 自动加载 + 批次筛选 + 趋势/SPC/相关性分析</div>
     </header>
 
-    <section class="grid">
-      <div class="card">
-        <div class="title">1. 工艺参数时序趋势</div>
-        <div id="trend" class="chart"></div>
+    <section class="toolbar">
+      <label>数据源：<code>../data/sample_experiment_data.csv</code></label>
+      <label>起始批次
+        <select id="startBatch"></select>
+      </label>
+      <label>结束批次
+        <select id="endBatch"></select>
+      </label>
+      <button id="apply">应用筛选</button>
+      <button id="reset">重置</button>
+      <span class="status" id="status">数据加载中...</span>
+    </section>
+
+    <section class="metrics">
+      <div class="metric-card">
+        <div class="metric-label">批次数量</div>
+        <div class="metric-value" id="mBatches">-</div>
       </div>
-      <div class="card">
-        <div class="title">2. 批次 GMI 指标对比</div>
-        <div id="bar" class="chart"></div>
+      <div class="metric-card">
+        <div class="metric-label">平均 GMI (%)</div>
+        <div class="metric-value" id="mGmi">-</div>
       </div>
-      <div class="card">
-        <div class="title">3. 退火温度 vs GMI 相关性</div>
-        <div id="scatter" class="chart"></div>
+      <div class="metric-card">
+        <div class="metric-label">平均缺陷率 (%)</div>
+        <div class="metric-value" id="mDefect">-</div>
       </div>
-      <div class="card">
-        <div class="title">4. GMI 质量控制图（X-bar）</div>
-        <div id="control" class="chart"></div>
+      <div class="metric-card">
+        <div class="metric-label">最高 GMI 批次</div>
+        <div class="metric-value" id="mBest">-</div>
       </div>
     </section>
 
+    <section class="grid">
+      <div class="card"><div class="title">1. 工艺参数时序趋势</div><div id="trend" class="chart"></div></div>
+      <div class="card"><div class="title">2. 批次 GMI 指标对比（超均值高亮）</div><div id="bar" class="chart"></div></div>
+      <div class="card"><div class="title">3. 退火温度 vs GMI 相关性</div><div id="scatter" class="chart"></div></div>
+      <div class="card"><div class="title">4. GMI 质量控制图（X-bar）</div><div id="control" class="chart"></div></div>
+      <div class="card"><div class="title">5. 缺陷率趋势与阈值（2.8%）</div><div id="defect" class="chart"></div></div>
+    </section>
+
     <script>
-      const data = [
-        { batch: "B240301", melt: 1268, draw: 22.5, anneal: 378, gmi: 7.4 },
-        { batch: "B240302", melt: 1272, draw: 23.1, anneal: 381, gmi: 7.9 },
-        { batch: "B240303", melt: 1260, draw: 21.8, anneal: 374, gmi: 6.8 },
-        { batch: "B240304", melt: 1278, draw: 23.4, anneal: 385, gmi: 8.2 },
-        { batch: "B240305", melt: 1265, draw: 22.2, anneal: 377, gmi: 7.2 },
-        { batch: "B240306", melt: 1281, draw: 23.8, anneal: 387, gmi: 8.5 },
-        { batch: "B240307", melt: 1258, draw: 21.5, anneal: 372, gmi: 6.5 },
-        { batch: "B240308", melt: 1275, draw: 23.0, anneal: 383, gmi: 8.0 },
-        { batch: "B240309", melt: 1263, draw: 22.0, anneal: 376, gmi: 7.1 },
-        { batch: "B240310", melt: 1283, draw: 24.0, anneal: 389, gmi: 8.7 },
+      const SAMPLE_FALLBACK = [
+        { batch_id: "B240301", melt_temp_c: 1268, draw_speed_mps: 22.5, anneal_temp_c: 378, gmi_ratio_pct: 7.4, defect_rate_pct: 2.8 },
+        { batch_id: "B240302", melt_temp_c: 1272, draw_speed_mps: 23.1, anneal_temp_c: 381, gmi_ratio_pct: 7.9, defect_rate_pct: 2.3 },
+        { batch_id: "B240303", melt_temp_c: 1260, draw_speed_mps: 21.8, anneal_temp_c: 374, gmi_ratio_pct: 6.8, defect_rate_pct: 3.4 },
+        { batch_id: "B240304", melt_temp_c: 1278, draw_speed_mps: 23.4, anneal_temp_c: 385, gmi_ratio_pct: 8.2, defect_rate_pct: 2.0 },
+        { batch_id: "B240305", melt_temp_c: 1265, draw_speed_mps: 22.2, anneal_temp_c: 377, gmi_ratio_pct: 7.2, defect_rate_pct: 2.7 },
+        { batch_id: "B240306", melt_temp_c: 1281, draw_speed_mps: 23.8, anneal_temp_c: 387, gmi_ratio_pct: 8.5, defect_rate_pct: 1.8 },
+        { batch_id: "B240307", melt_temp_c: 1258, draw_speed_mps: 21.5, anneal_temp_c: 372, gmi_ratio_pct: 6.5, defect_rate_pct: 3.8 },
+        { batch_id: "B240308", melt_temp_c: 1275, draw_speed_mps: 23.0, anneal_temp_c: 383, gmi_ratio_pct: 8.0, defect_rate_pct: 2.2 },
+        { batch_id: "B240309", melt_temp_c: 1263, draw_speed_mps: 22.0, anneal_temp_c: 376, gmi_ratio_pct: 7.1, defect_rate_pct: 2.9 },
+        { batch_id: "B240310", melt_temp_c: 1283, draw_speed_mps: 24.0, anneal_temp_c: 389, gmi_ratio_pct: 8.7, defect_rate_pct: 1.6 },
       ];
 
-      const batches = data.map((d) => d.batch);
-      const gmi = data.map((d) => d.gmi);
-      const mean = gmi.reduce((a, b) => a + b, 0) / gmi.length;
-      const std = Math.sqrt(
-        gmi.reduce((acc, x) => acc + (x - mean) ** 2, 0) / gmi.length
-      );
-      const ucl = mean + 3 * std;
-      const lcl = mean - 3 * std;
+      const statusEl = document.getElementById("status");
+      const startEl = document.getElementById("startBatch");
+      const endEl = document.getElementById("endBatch");
+      let fullData = [];
 
-      const trend = echarts.init(document.getElementById("trend"));
-      trend.setOption({
-        tooltip: { trigger: "axis" },
-        legend: { top: 4 },
-        xAxis: { type: "category", data: batches },
-        yAxis: [
-          { type: "value", name: "温度(℃)" },
-          { type: "value", name: "速度(m/s)", min: 20, max: 25 },
-        ],
-        series: [
-          { name: "熔炼温度", type: "line", data: data.map((d) => d.melt), smooth: true },
-          { name: "退火温度", type: "line", data: data.map((d) => d.anneal), smooth: true },
-          { name: "拉丝速度", type: "line", yAxisIndex: 1, data: data.map((d) => d.draw), smooth: true },
-        ],
-      });
+      const charts = {
+        trend: echarts.init(document.getElementById("trend")),
+        bar: echarts.init(document.getElementById("bar")),
+        scatter: echarts.init(document.getElementById("scatter")),
+        control: echarts.init(document.getElementById("control")),
+        defect: echarts.init(document.getElementById("defect")),
+      };
 
-      const bar = echarts.init(document.getElementById("bar"));
-      bar.setOption({
-        tooltip: { trigger: "axis" },
-        xAxis: { type: "category", data: batches },
-        yAxis: { type: "value", name: "GMI(%)" },
-        series: [
-          {
+      function toNum(v) {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+      }
+
+      function parseCSV(text) {
+        const [headerLine, ...lines] = text.trim().split(/\r?\n/);
+        const headers = headerLine.split(",").map((x) => x.trim());
+        return lines.map((line) => {
+          const cols = line.split(",");
+          const obj = {};
+          headers.forEach((h, i) => (obj[h] = cols[i]?.trim()));
+          return {
+            batch_id: obj.batch_id,
+            melt_temp_c: toNum(obj.melt_temp_c),
+            draw_speed_mps: toNum(obj.draw_speed_mps),
+            anneal_temp_c: toNum(obj.anneal_temp_c),
+            gmi_ratio_pct: toNum(obj.gmi_ratio_pct),
+            defect_rate_pct: toNum(obj.defect_rate_pct),
+          };
+        }).filter((d) => d.batch_id);
+      }
+
+      function calcStats(arr) {
+        const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
+        const std = Math.sqrt(arr.reduce((acc, x) => acc + (x - mean) ** 2, 0) / arr.length);
+        return { mean, std, ucl: mean + 3 * std, lcl: mean - 3 * std };
+      }
+
+      function setMetrics(dataset) {
+        const gmis = dataset.map((d) => d.gmi_ratio_pct);
+        const defects = dataset.map((d) => d.defect_rate_pct);
+        const avgGmi = gmis.reduce((a, b) => a + b, 0) / gmis.length;
+        const avgDefect = defects.reduce((a, b) => a + b, 0) / defects.length;
+        const best = dataset.reduce((p, c) => (c.gmi_ratio_pct > p.gmi_ratio_pct ? c : p), dataset[0]);
+
+        document.getElementById("mBatches").textContent = String(dataset.length);
+        document.getElementById("mGmi").textContent = avgGmi.toFixed(2);
+        document.getElementById("mDefect").textContent = avgDefect.toFixed(2);
+        document.getElementById("mBest").textContent = `${best.batch_id} (${best.gmi_ratio_pct.toFixed(1)})`;
+      }
+
+      function updateCharts(dataset) {
+        if (!dataset.length) return;
+
+        const batches = dataset.map((d) => d.batch_id);
+        const gmi = dataset.map((d) => d.gmi_ratio_pct);
+        const defects = dataset.map((d) => d.defect_rate_pct);
+        const { mean, ucl, lcl } = calcStats(gmi);
+
+        charts.trend.setOption({
+          tooltip: { trigger: "axis" },
+          legend: { top: 4 },
+          xAxis: { type: "category", data: batches },
+          yAxis: [{ type: "value", name: "温度(℃)" }, { type: "value", name: "速度(m/s)", min: 20, max: 25 }],
+          series: [
+            { name: "熔炼温度", type: "line", smooth: true, data: dataset.map((d) => d.melt_temp_c) },
+            { name: "退火温度", type: "line", smooth: true, data: dataset.map((d) => d.anneal_temp_c) },
+            { name: "拉丝速度", type: "line", smooth: true, yAxisIndex: 1, data: dataset.map((d) => d.draw_speed_mps) },
+          ],
+        });
+
+        charts.bar.setOption({
+          tooltip: { trigger: "axis" },
+          xAxis: { type: "category", data: batches },
+          yAxis: { type: "value", name: "GMI(%)" },
+          series: [{
             name: "GMI",
             type: "bar",
             data: gmi,
-            itemStyle: {
-              color: (p) => (p.value >= mean ? "#2f8f46" : "#d08f00"),
-            },
-          },
-        ],
+            itemStyle: { color: (p) => (p.value >= mean ? "#2f8f46" : "#d08f00") },
+            markLine: { data: [{ yAxis: mean, name: "均值" }] },
+          }],
+        });
+
+        charts.scatter.setOption({
+          tooltip: { trigger: "item", formatter: (p) => `${p.data[2]}<br/>退火: ${p.data[0]}℃<br/>GMI: ${p.data[1]}%` },
+          xAxis: { type: "value", name: "退火温度(℃)" },
+          yAxis: { type: "value", name: "GMI(%)" },
+          series: [{ type: "scatter", symbolSize: 12, data: dataset.map((d) => [d.anneal_temp_c, d.gmi_ratio_pct, d.batch_id]) }],
+        });
+
+        charts.control.setOption({
+          tooltip: { trigger: "axis" },
+          legend: { top: 4 },
+          xAxis: { type: "category", data: batches },
+          yAxis: { type: "value", name: "GMI(%)" },
+          series: [
+            { name: "样本值", type: "line", data: gmi },
+            { name: "均值", type: "line", data: batches.map(() => mean), lineStyle: { type: "dashed" } },
+            { name: "UCL", type: "line", data: batches.map(() => ucl), lineStyle: { type: "dotted" } },
+            { name: "LCL", type: "line", data: batches.map(() => lcl), lineStyle: { type: "dotted" } },
+          ],
+        });
+
+        charts.defect.setOption({
+          tooltip: { trigger: "axis" },
+          xAxis: { type: "category", data: batches },
+          yAxis: { type: "value", name: "缺陷率(%)" },
+          series: [{
+            type: "line",
+            data: defects,
+            markLine: { data: [{ yAxis: 2.8, name: "阈值" }] },
+            lineStyle: { color: "#a83232" },
+            itemStyle: { color: "#a83232" },
+          }],
+        });
+
+        setMetrics(dataset);
+      }
+
+      function fillSelectors(data) {
+        const options = data.map((d) => `<option value="${d.batch_id}">${d.batch_id}</option>`).join("");
+        startEl.innerHTML = options;
+        endEl.innerHTML = options;
+        startEl.value = data[0].batch_id;
+        endEl.value = data[data.length - 1].batch_id;
+      }
+
+      function getFilteredData() {
+        const ids = fullData.map((d) => d.batch_id);
+        const startIndex = ids.indexOf(startEl.value);
+        const endIndex = ids.indexOf(endEl.value);
+        if (startIndex < 0 || endIndex < 0) return fullData;
+        const [left, right] = startIndex <= endIndex ? [startIndex, endIndex] : [endIndex, startIndex];
+        return fullData.slice(left, right + 1);
+      }
+
+      document.getElementById("apply").addEventListener("click", () => {
+        const filtered = getFilteredData();
+        statusEl.textContent = `当前展示 ${filtered.length} 个批次`;
+        updateCharts(filtered);
       });
 
-      const scatter = echarts.init(document.getElementById("scatter"));
-      scatter.setOption({
-        tooltip: { trigger: "item" },
-        xAxis: { type: "value", name: "退火温度(℃)" },
-        yAxis: { type: "value", name: "GMI(%)" },
-        series: [
-          {
-            type: "scatter",
-            symbolSize: 12,
-            data: data.map((d) => [d.anneal, d.gmi, d.batch]),
-            label: {
-              show: true,
-              formatter: (p) => p.data[2],
-              position: "top",
-              fontSize: 10,
-            },
-          },
-        ],
+      document.getElementById("reset").addEventListener("click", () => {
+        fillSelectors(fullData);
+        statusEl.textContent = `当前展示 ${fullData.length} 个批次`;
+        updateCharts(fullData);
       });
 
-      const control = echarts.init(document.getElementById("control"));
-      control.setOption({
-        tooltip: { trigger: "axis" },
-        legend: { top: 4 },
-        xAxis: { type: "category", data: batches },
-        yAxis: { type: "value", name: "GMI(%)" },
-        series: [
-          { name: "样本值", type: "line", data: gmi },
-          { name: "均值", type: "line", data: batches.map(() => mean), lineStyle: { type: "dashed" } },
-          { name: "UCL", type: "line", data: batches.map(() => ucl), lineStyle: { type: "dotted" } },
-          { name: "LCL", type: "line", data: batches.map(() => lcl), lineStyle: { type: "dotted" } },
-        ],
-      });
+      async function init() {
+        try {
+          const candidates = ["../data/sample_experiment_data.csv", "./data/sample_experiment_data.csv", "sample_experiment_data.csv"];
+          let text = "";
+          let lastErr = null;
+          for (const url of candidates) {
+            try {
+              const res = await fetch(url);
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              text = await res.text();
+              break;
+            } catch (e) {
+              lastErr = e;
+            }
+          }
+          if (!text) throw lastErr || new Error("CSV unavailable");
+          fullData = parseCSV(text);
+          statusEl.textContent = `CSV 加载成功，共 ${fullData.length} 条`;
+        } catch (error) {
+          fullData = SAMPLE_FALLBACK;
+          statusEl.textContent = `CSV 加载失败，使用内置数据（${error?.message || "未知错误"}）`;
+        }
 
-      window.addEventListener("resize", () => {
-        trend.resize();
-        bar.resize();
-        scatter.resize();
-        control.resize();
-      });
+        if (!fullData.length) {
+          statusEl.textContent = "没有可用数据";
+          return;
+        }
+
+        fillSelectors(fullData);
+        updateCharts(fullData);
+      }
+
+      window.addEventListener("resize", () => Object.values(charts).forEach((c) => c.resize()));
+      init();
     </script>
   </body>
 </html>
